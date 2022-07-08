@@ -74,7 +74,7 @@ async fn upload(form: FormData) -> Result<impl Reply, Rejection> {
                 .unwrap();
 
             let _res = client
-                .put(format!("https://jianxu20220330.blob.core.windows.net/file/{:?}?sv=2021-06-08&ss=bfqt&srt=sco&sp=rwdlacupitfx&se=2022-07-13T10:11:13Z&st=2022-07-06T02:11:13Z&spr=https&sig=1CLCCyBMJwGpnA8YmC%2BSCiIQd77zDb6qoyGVNO0CTko%3D", "myfile.pdf"))
+                .put(format!("https://{}", "myfile.pdf"))
                 .multipart(file)
                 .send()
                 .await
