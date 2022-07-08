@@ -1,7 +1,7 @@
 use bytes::BufMut;
-use futures::TryStreamExt;
+use futures::stream::TryStreamExt;
+use reqwest::header::HeaderMap;
 use std::convert::Infallible;
-use uuid::Uuid;
 use warp::{
     http::StatusCode,
     multipart::{FormData, Part},
@@ -12,9 +12,9 @@ use warp::{
 async fn main() {
     let upload_route = warp::path("upload")
         .and(warp::post())
-        .and(warp::multipart::form().max_length(5_000_000))
+        .and(warp::multipart::form().max_length(500_000_000))
         .and_then(upload);
-    let download_route = warp::path("files").and(warp::fs::dir("./files/"));
+    let download_route = warp::path("files").and(warp::fs::dir("./"));
 
     let router = upload_route.or(download_route).recover(handle_rejection);
     println!("Server started at localhost:8080");
@@ -29,26 +29,26 @@ async fn upload(form: FormData) -> Result<impl Reply, Rejection> {
 
     for p in parts {
         if p.name() == "file" {
-            let content_type = p.content_type();
-            let file_ending;
-            match content_type {
-                Some(file_type) => match file_type {
-                    "application/pdf" => {
-                        file_ending = "pdf";
-                    }
-                    "image/png" => {
-                        file_ending = "png";
-                    }
-                    v => {
-                        eprintln!("invalid file type found: {}", v);
-                        return Err(warp::reject::reject());
-                    }
-                },
-                None => {
-                    eprintln!("file type could not be determined");
-                    return Err(warp::reject::reject());
-                }
-            }
+            // let content_type = p.content_type();
+            // let file_ending;
+            // match content_type {
+            //     Some(file_type) => match file_type {
+            //         "application/pdf" => {
+            //             file_ending = "pdf";
+            //         }
+            //         "image/png" => {
+            //             file_ending = "png";
+            //         }
+            //         v => {
+            //             eprintln!("invalid file type found: {}", v);
+            //             return Err(warp::reject::reject());
+            //         }
+            //     },
+            //     None => {
+            //         eprintln!("file type could not be determined");
+            //         return Err(warp::reject::reject());
+            //     }
+            // }
 
             let value = p
                 .stream()
@@ -62,12 +62,24 @@ async fn upload(form: FormData) -> Result<impl Reply, Rejection> {
                     warp::reject::reject()
                 })?;
 
-            let file_name = format!("./files/{}.{}", Uuid::new_v4().to_string(), file_ending);
-            tokio::fs::write(&file_name, value).await.map_err(|e| {
-                eprint!("error writing file: {}", e);
-                warp::reject::reject()
-            })?;
-            println!("created file: {}", file_name);
+            let part = reqwest::multipart::Part::bytes(value);
+            let file = reqwest::multipart::Form::new().part("blob", part);
+
+            let mut headers = HeaderMap::new();
+            headers.insert("x-ms-blob-type", "BlockBlob".parse().unwrap());
+
+            let client = reqwest::Client::builder()
+                .default_headers(headers)
+                .build()
+                .unwrap();
+
+            let _res = client
+                .put(format!("https://jianxu20220330.blob.core.windows.net/file/{:?}?sv=2021-06-08&ss=bfqt&srt=sco&sp=rwdlacupitfx&se=2022-07-13T10:11:13Z&st=2022-07-06T02:11:13Z&spr=https&sig=1CLCCyBMJwGpnA8YmC%2BSCiIQd77zDb6qoyGVNO0CTko%3D", "myfile.pdf"))
+                .multipart(file)
+                .send()
+                .await
+                .unwrap();
+            println!("{:?}", _res);
         }
     }
 

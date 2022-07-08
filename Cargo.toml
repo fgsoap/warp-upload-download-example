@@ -1,15 +1,16 @@
 [package]
 name = "warp-upload-download-example"
 version = "0.1.0"
-authors = ["Mario Zupan <mario@zupzup.org>"]
-edition = "2018"
+edition = "2021"
 
 [dependencies]
-tokio = { version = "1.12", features = ["macros", "fs", "rt-multi-thread"] }
+tokio = { version = "1.19", features = ["macros", "fs", "rt-multi-thread"] }
 warp = "0.3"
-uuid = { version = "0.8", features = ["v4"] }
+uuid = { version = "1.1", features = ["v4"] }
 futures = { version = "0.3", default-features = false }
-bytes = "1.0"
+bytes = "1.1"
+reqwest = { version = "0.11", features = ["stream", "multipart"] }
+tokio-util = { version = "0.7", features = ["codec"] }
 
 [profile.dev]
 debug = 0
