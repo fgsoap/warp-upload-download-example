@@ -28,28 +28,17 @@ async fn upload(form: FormData, headers: HeaderMap) -> Result<impl Reply, Reject
         warp::reject::reject()
     })?;
 
-    let x_ms_blob_account = match headers.get("x-ms-blob-account") {
-        Some(content_type) => content_type.to_str().unwrap(),
-        None => "url",
-    };
-
-    let x_ms_blob_sv = match headers.get("x-ms-blob-sv") {
-        Some(content_type) => content_type.to_str().unwrap(),
-        None => "sv",
-    };
-
-    let x_ms_blob_container = match headers.get("x-ms-blob-container") {
-        Some(content_type) => content_type.to_str().unwrap(),
-        None => "container",
-    };
+    let x_ms_blob_account = headers.get("x-ms-blob-account").unwrap();
+    let x_ms_blob_sv = headers.get("x-ms-blob-sv").unwrap();
+    let x_ms_blob_container = headers.get("x-ms-blob-container").unwrap();
 
     for p in parts {
         let url = format!(
             "https://{}.blob.core.windows.net/{}/{}{}",
-            x_ms_blob_account,
-            x_ms_blob_container,
+            x_ms_blob_account.to_str().unwrap(),
+            x_ms_blob_container.to_str().unwrap(),
             p.filename().unwrap(),
-            x_ms_blob_sv
+            x_ms_blob_sv.to_str().unwrap()
         );
 
         let value = p
@@ -75,8 +64,7 @@ async fn upload(form: FormData, headers: HeaderMap) -> Result<impl Reply, Reject
             .build()
             .unwrap();
 
-        let _res = client.put(url).multipart(file).send().await.unwrap();
-        println!("{:?}", _res);
+        client.put(url).multipart(file).send().await.unwrap();
     }
 
     Ok("success")
