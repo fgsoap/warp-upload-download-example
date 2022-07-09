@@ -10,77 +10,73 @@ use warp::{
 
 #[tokio::main]
 async fn main() {
+    let headers = warp::header::headers_cloned();
     let upload_route = warp::path("upload")
         .and(warp::post())
-        .and(warp::multipart::form().max_length(500_000_000))
+        .and(warp::multipart::form().max_length(5000000000))
+        .and(headers)
         .and_then(upload);
-    let download_route = warp::path("files").and(warp::fs::dir("./"));
 
-    let router = upload_route.or(download_route).recover(handle_rejection);
+    let router = upload_route.recover(handle_rejection);
     println!("Server started at localhost:8080");
     warp::serve(router).run(([0, 0, 0, 0], 8080)).await;
 }
 
-async fn upload(form: FormData) -> Result<impl Reply, Rejection> {
+async fn upload(form: FormData, headers: HeaderMap) -> Result<impl Reply, Rejection> {
     let parts: Vec<Part> = form.try_collect().await.map_err(|e| {
         eprintln!("form error: {}", e);
         warp::reject::reject()
     })?;
 
+    let azure_blob_account = match headers.get("azure-blob-account") {
+        Some(content_type) => content_type.to_str().unwrap(),
+        None => "url",
+    };
+
+    let azure_blob_sv = match headers.get("azure-blob-sv") {
+        Some(content_type) => content_type.to_str().unwrap(),
+        None => "sv",
+    };
+
+    let azure_blob_container = match headers.get("azure-blob-container") {
+        Some(content_type) => content_type.to_str().unwrap(),
+        None => "container",
+    };
+
     for p in parts {
-        if p.name() == "file" {
-            // let content_type = p.content_type();
-            // let file_ending;
-            // match content_type {
-            //     Some(file_type) => match file_type {
-            //         "application/pdf" => {
-            //             file_ending = "pdf";
-            //         }
-            //         "image/png" => {
-            //             file_ending = "png";
-            //         }
-            //         v => {
-            //             eprintln!("invalid file type found: {}", v);
-            //             return Err(warp::reject::reject());
-            //         }
-            //     },
-            //     None => {
-            //         eprintln!("file type could not be determined");
-            //         return Err(warp::reject::reject());
-            //     }
-            // }
+        let url = format!(
+            "https://{}.blob.core.windows.net/{}/{}?{}",
+            azure_blob_account,
+            azure_blob_container,
+            p.filename().unwrap(),
+            azure_blob_sv
+        );
 
-            let value = p
-                .stream()
-                .try_fold(Vec::new(), |mut vec, data| {
-                    vec.put(data);
-                    async move { Ok(vec) }
-                })
-                .await
-                .map_err(|e| {
-                    eprintln!("reading file error: {}", e);
-                    warp::reject::reject()
-                })?;
+        let value = p
+            .stream()
+            .try_fold(Vec::new(), |mut vec, data| {
+                vec.put(data);
+                async move { Ok(vec) }
+            })
+            .await
+            .map_err(|e| {
+                eprintln!("reading file error: {}", e);
+                warp::reject::reject()
+            })?;
 
-            let part = reqwest::multipart::Part::bytes(value);
-            let file = reqwest::multipart::Form::new().part("blob", part);
+        let part = reqwest::multipart::Part::bytes(value);
+        let file = reqwest::multipart::Form::new().part("part_bytes", part);
 
-            let mut headers = HeaderMap::new();
-            headers.insert("x-ms-blob-type", "BlockBlob".parse().unwrap());
+        let mut headers = HeaderMap::new();
+        headers.insert("x-ms-blob-type", "BlockBlob".parse().unwrap());
 
-            let client = reqwest::Client::builder()
-                .default_headers(headers)
-                .build()
-                .unwrap();
+        let client = reqwest::Client::builder()
+            .default_headers(headers)
+            .build()
+            .unwrap();
 
-            let _res = client
-                .put(format!("https://jianxu20220330.blob.core.windows.net/file/{:?}?sv=2021-06-08&ss=bfqt&srt=sco&sp=rwdlacupitfx&se=2022-07-13T10:11:13Z&st=2022-07-06T02:11:13Z&spr=https&sig=1CLCCyBMJwGpnA8YmC%2BSCiIQd77zDb6qoyGVNO0CTko%3D", "myfile.pdf"))
-                .multipart(file)
-                .send()
-                .await
-                .unwrap();
-            println!("{:?}", _res);
-        }
+        let _res = client.put(url).multipart(file).send().await.unwrap();
+        println!("{:?}", _res);
     }
 
     Ok("success")
