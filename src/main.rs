@@ -28,28 +28,28 @@ async fn upload(form: FormData, headers: HeaderMap) -> Result<impl Reply, Reject
         warp::reject::reject()
     })?;
 
-    let azure_blob_account = match headers.get("azure-blob-account") {
+    let x_ms_blob_account = match headers.get("x-ms-blob-account") {
         Some(content_type) => content_type.to_str().unwrap(),
         None => "url",
     };
 
-    let azure_blob_sv = match headers.get("azure-blob-sv") {
+    let x_ms_blob_sv = match headers.get("x-ms-blob-sv") {
         Some(content_type) => content_type.to_str().unwrap(),
         None => "sv",
     };
 
-    let azure_blob_container = match headers.get("azure-blob-container") {
+    let x_ms_blob_container = match headers.get("x-ms-blob-container") {
         Some(content_type) => content_type.to_str().unwrap(),
         None => "container",
     };
 
     for p in parts {
         let url = format!(
-            "https://{}.blob.core.windows.net/{}/{}?{}",
-            azure_blob_account,
-            azure_blob_container,
+            "https://{}.blob.core.windows.net/{}/{}{}",
+            x_ms_blob_account,
+            x_ms_blob_container,
             p.filename().unwrap(),
-            azure_blob_sv
+            x_ms_blob_sv
         );
 
         let value = p
